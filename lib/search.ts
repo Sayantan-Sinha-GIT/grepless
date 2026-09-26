@@ -12,7 +12,7 @@ const RRF_K = 60;
 const KEYWORD_WEIGHT = 0.6;
 const CANDIDATES = 40;
 const TEST_PATH_RE = '(^|/)(tests?|__tests__|specs?|e2e|benchmarks?)/|[._-](test|spec)s?\\.[a-z]+$';
-const TEST_PRIOR = 0.8;
+const TEST_PRIOR = 0.65;
 const DOCS_PRIOR = 0.9;
 
 interface Row {

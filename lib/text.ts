@@ -6,7 +6,7 @@ const STOPWORDS = new Set(
   (
     'a an and are as at be by can code do does for from how i if in into is it its me my of on or our ' +
     'should so that the their them then there these this to use used uses using was we what when where ' +
-    'which who why will with you your find show get gets file files function functions method logic ' +
+    'which who why will with you your find show get gets function functions method logic ' +
     'handle handles handled handling implement implemented implementation part place thing things any all'
   ).split(' '),
 );

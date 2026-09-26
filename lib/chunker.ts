@@ -144,9 +144,18 @@ function definitionOf(raw: SyntaxNode, inFunction = false): { name: string; kind
     // Module- and class-level constants are worth naming; locals inside a function are not.
     return inFunction ? null : { name, kind: 'variable' };
   }
-  // test('does x', …) / describe('Foo', …) blocks in JS/TS test suites.
   if (node.type === 'expression_statement') {
-    const call = namedChildren(node)[0];
+    const expr = namedChildren(node)[0];
+    // res.sendFile = function sendFile() {…} / module.exports = class Foo {…}
+    if (expr?.type === 'assignment_expression') {
+      const left = expr.childForFieldName('left')?.text;
+      const right = expr.childForFieldName('right');
+      if (!left || left.length > 80 || !right || !/function|arrow|class/.test(right.type)) return null;
+      const name = left.replace(/^module\.exports\.?|^exports\./, '') || 'module.exports';
+      return { name, kind: right.type.includes('class') ? 'class' : 'function' };
+    }
+    // test('does x', …) / describe('Foo', …) blocks in JS/TS test suites.
+    const call = expr;
     if (call?.type !== 'call_expression') return null;
     const fn = call.childForFieldName('function')?.text ?? '';
     if (!TEST_CALL_RE.test(fn)) return null;
@@ -177,6 +186,17 @@ function descendTarget(raw: SyntaxNode): SyntaxNode {
       ?.childForFieldName('value');
     if (value) node = value;
   }
+  if (node.type === 'expression_statement') {
+    const expr = namedChildren(node)[0];
+    if (expr?.type === 'assignment_expression') {
+      node = expr.childForFieldName('right') ?? node;
+    } else if (expr?.type === 'call_expression') {
+      // describe('x', function () { … }) → look inside the callback.
+      const args = expr.childForFieldName('arguments');
+      const callback = args ? namedChildren(args).reverse().find((a) => /function|arrow/.test(a.type)) : undefined;
+      if (callback) node = callback;
+    }
+  }
   return node.childForFieldName('body') ?? node;
 }
 
@@ -201,7 +221,7 @@ function lineWindows(lines: Lines, start: number, end: number, symbols: string[]
   return out;
 }
 
-function walk(node: SyntaxNode, lines: Lines, context: string[], inFunction = false): Range[] {
+function walk(node: SyntaxNode, lines: Lines, context: string[], inFunction = false, inClass = false): Range[] {
   const out: Range[] = [];
   let group: (Range & { bigDef: boolean }) | null = null;
 
@@ -214,15 +234,19 @@ function walk(node: SyntaxNode, lines: Lines, context: string[], inFunction = fa
     const start = child.startPosition.row;
     const end = endRow(child);
     const size = lines.size(start, end);
-    const def = definitionOf(child, inFunction);
-    const qualified = def ? [...context, def.name].join('.') : null;
+    const found = definitionOf(child, inFunction);
+    const def = found && inClass && found.kind === 'function' ? { ...found, kind: 'method' } : found;
+    // Test names are sentences; keep only the nearest enclosing block for context.
+    const qualified = def
+      ? [...(def.kind === 'test' ? context.slice(-1) : context), def.name].join(def.kind === 'test' ? ' › ' : '.')
+      : null;
 
     if (size > MAX_CHARS) {
       flush();
       const target = descendTarget(child);
       const inner = qualified ? [...context, def!.name] : context;
       const innerFn = inFunction || /function|method|test/.test(def?.kind ?? '');
-      let subs = target !== child || namedChildren(child).length > 1 ? walk(target, lines, inner, innerFn) : [];
+      let subs = target !== child || namedChildren(child).length > 1 ? walk(target, lines, inner, innerFn, def?.kind === 'class') : [];
       if (subs.length === 0) {
         subs = lineWindows(lines, start, end, qualified ? [qualified] : context.slice(-1), def?.kind ?? 'block');
       } else {
@@ -248,7 +272,7 @@ function walk(node: SyntaxNode, lines: Lines, context: string[], inFunction = fa
         current.end = Math.max(current.end, end);
         if (qualified) {
           current.symbols.push(qualified);
-          if (current.kind === 'block') current.kind = def!.kind;
+          if (current.kind === 'block' || current.kind === 'imports') current.kind = def!.kind;
         }
         current.bigDef ||= !!def && size >= MIN_CHARS;
         continue;
@@ -327,7 +351,9 @@ function finalize(ranges: Range[], lines: Lines): Chunk[] {
     chunks.push({
       startLine: start + 1,
       endLine: end + 1,
-      symbol: symbols.length ? symbols.slice(0, 3).join(', ') + (symbols.length > 3 ? ` +${symbols.length - 3}` : '') : null,
+      symbol: symbols.length
+        ? (symbols.slice(0, 3).join(', ') + (symbols.length > 3 ? ` +${symbols.length - 3}` : '')).slice(0, 160)
+        : null,
       kind: r.kind,
       content,
     });
