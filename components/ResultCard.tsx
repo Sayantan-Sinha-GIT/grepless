@@ -22,6 +22,7 @@ export function ResultCard({
   name,
   commitSha,
   query,
+  explain: explainOn,
 }: {
   hit: SearchHit;
   rank: number;
@@ -29,6 +30,7 @@ export function ResultCard({
   name: string;
   commitSha: string | null;
   query: string;
+  explain: boolean;
 }) {
   const codeRef = useRef<HTMLDivElement>(null);
   const [explanation, setExplanation] = useState<string | null>(null);
@@ -132,14 +134,16 @@ export function ResultCard({
         >
           {copied ? 'Copied' : 'Copy path'}
         </button>
-        <button
-          type="button"
-          onClick={explain}
-          disabled={explaining || !!explanation}
-          className="rounded-md px-2 py-1 text-muted ring-1 ring-line hover:text-fg disabled:opacity-60"
-        >
-          {explaining ? 'Explaining…' : '✦ Explain'}
-        </button>
+        {explainOn && (
+          <button
+            type="button"
+            onClick={explain}
+            disabled={explaining || !!explanation}
+            className="rounded-md px-2 py-1 text-muted ring-1 ring-line hover:text-fg disabled:opacity-60"
+          >
+            {explaining ? 'Explaining…' : '✦ Explain'}
+          </button>
+        )}
         <span className="ml-auto hidden font-mono text-faint sm:inline">
           {hit.semanticRank ? `semantic #${hit.semanticRank}` : 'semantic —'} · {hit.keywordRank ? `keyword #${hit.keywordRank}` : 'keyword —'}
         </span>

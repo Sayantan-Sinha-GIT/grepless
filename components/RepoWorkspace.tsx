@@ -34,7 +34,15 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
 
 type Sample = { t: number; done: number };
 
-export function RepoWorkspace({ initialRepo, initialQuery }: { initialRepo: PublicRepo; initialQuery: string }) {
+export function RepoWorkspace({
+  initialRepo,
+  initialQuery,
+  explain,
+}: {
+  initialRepo: PublicRepo;
+  initialQuery: string;
+  explain: boolean;
+}) {
   const [repo, setRepo] = useState(initialRepo);
   const [driveError, setDriveError] = useState<string | null>(null);
   const [runKey, setRunKey] = useState(0);
@@ -368,6 +376,7 @@ export function RepoWorkspace({ initialRepo, initialQuery }: { initialRepo: Publ
                     name={repo.name}
                     commitSha={repo.commitSha}
                     query={meta.query}
+                    explain={explain}
                   />
                 ))}
               </div>

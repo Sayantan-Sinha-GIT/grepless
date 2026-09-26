@@ -53,7 +53,7 @@ Text search (`grep`, GitHub search) only works when you already know the identif
 | 3 | Code chunking | tree-sitter parses 13 languages (TS, TSX, JS/JSX, Python, Go, Rust, Java, C#, C/C++, Ruby, PHP, Bash, CSS). Chunks follow function/class/method boundaries. Large nodes are split into their children, and small siblings are merged. Markdown is split by heading. Other text uses overlapping line windows. |
 | 4 | Embeddings | `gte-small` (384-d, int8-quantized ONNX) runs in the Vercel function through transformers.js. The embedded text is `path + symbol + code`. |
 | 5 | Vector storage | Supabase Postgres: `chunks.embedding vector(384)` with an HNSW cosine index, plus a `tsvector` column with a GIN index. |
-| 6 | Semantic search | The query is embedded with the same model. Hybrid SQL takes the top 40 by cosine distance and the top 40 by `ts_rank_cd`, then fuses them with Reciprocal Rank Fusion (k = 60). |
+| 6 | Semantic search | The query is embedded with the same model. Hybrid SQL takes the top 40 by cosine distance (HNSW, iterative scan) and the top 40 by `ts_rank_cd`, where symbol and path words carry weight A and body words weight D. The two lists are fused with Reciprocal Rank Fusion (k = 60), with small path priors (tests ×0.8, docs ×0.9). |
 | 7 | Results display | File path, line range, symbol, similarity, highlighted code, and a "why this matched" line showing shared terms, the matching window, and semantic vs keyword contribution. |
 | 8 | Indexing status | `queued → fetching → indexing → ready` (or `error`), with a live progress bar, counters, and an ETA. Indexing is resumable: reopening the page continues where it stopped. |
 
@@ -68,7 +68,7 @@ Text search (`grep`, GitHub search) only works when you already know the identif
 ### Nice-to-have
 | # | Feature | Status |
 |---|---|---|
-| 13 | One-line AI explanation of a result | Shipped as an optional **Explain** button through Vercel AI Gateway. It is the only LLM call in the product, and it is hidden if the gateway is not available. |
+| 13 | One-line AI explanation of a result | Built. An optional **Explain** button, and the only LLM call in the product. The provider is Groq (free key) or Vercel AI Gateway. The button stays hidden until a provider is configured (see `docs/SETUP.md`). |
 | 14 | GitHub OAuth for private repos | Deferred. Requires a GitHub OAuth App, which cannot be created programmatically. Steps are in `docs/SETUP.md`. |
 
 ## 6. System design
