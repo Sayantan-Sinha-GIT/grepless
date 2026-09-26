@@ -1,0 +1,160 @@
+@import 'tailwindcss';
+
+/* Design tokens. Dark is the default; light follows the OS setting. */
+:root {
+  --bg: #0a0b0d;
+  --bg-raised: #111317;
+  --bg-inset: #0d0f12;
+  --border: #1f232a;
+  --border-strong: #2c323c;
+  --text: #e8eaed;
+  --text-muted: #8d95a3;
+  --text-faint: #5d6573;
+  --accent: #ffb224;
+  --accent-strong: #ffc757;
+  --accent-ink: #1a1203;
+  --accent-soft: rgba(255, 178, 36, 0.12);
+  --hl-line: rgba(255, 178, 36, 0.1);
+  --hl-edge: #ffb224;
+  --ok: #3ecf8e;
+  --warn: #f5a524;
+  --danger: #ff6b6b;
+  --focus: rgba(255, 178, 36, 0.45);
+
+  --sh-class: #7cc4ff;
+  --sh-identifier: #d7dae0;
+  --sh-sign: #8d95a3;
+  --sh-property: #9fd3ff;
+  --sh-entity: #c6a0ff;
+  --sh-jsxliterals: #c6a0ff;
+  --sh-string: #9ee493;
+  --sh-keyword: #ff8f73;
+  --sh-comment: #5d6573;
+
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #fafaf8;
+    --bg-raised: #ffffff;
+    --bg-inset: #f4f3f0;
+    --border: #e6e3dd;
+    --border-strong: #d4d0c8;
+    --text: #17171a;
+    --text-muted: #5f636b;
+    --text-faint: #8e929a;
+    --accent: #b86e00;
+    --accent-strong: #9a5b00;
+    --accent-ink: #ffffff;
+    --accent-soft: rgba(184, 110, 0, 0.1);
+    --hl-line: rgba(255, 178, 36, 0.16);
+    --hl-edge: #d98a00;
+    --ok: #16a34a;
+    --warn: #b45309;
+    --danger: #dc2626;
+    --focus: rgba(184, 110, 0, 0.35);
+
+    --sh-class: #0b63b6;
+    --sh-identifier: #24262b;
+    --sh-sign: #6b7079;
+    --sh-property: #0f5ea8;
+    --sh-entity: #7a3ec2;
+    --sh-jsxliterals: #7a3ec2;
+    --sh-string: #1d7a2c;
+    --sh-keyword: #c43d1e;
+    --sh-comment: #9a9ea6;
+
+    color-scheme: light;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-raised: var(--bg-raised);
+  --color-inset: var(--bg-inset);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-fg: var(--text);
+  --color-muted: var(--text-muted);
+  --color-faint: var(--text-faint);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.grid-bg {
+  background-image:
+    linear-gradient(to right, var(--border) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, black 30%, transparent 75%);
+}
+
+/* Code blocks */
+.code-line {
+  display: grid;
+  grid-template-columns: 3.5rem 1fr;
+  border-left: 2px solid transparent;
+}
+.code-line[data-hl='true'] {
+  background: var(--hl-line);
+  border-left-color: var(--hl-edge);
+}
+.code-line .ln {
+  user-select: none;
+  text-align: right;
+  padding-right: 1rem;
+  color: var(--text-faint);
+}
+.code-line .src {
+  white-space: pre;
+  padding-right: 1rem;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+.progress-live {
+  background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-live {
+    animation: none;
+  }
+}
