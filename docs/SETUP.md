@@ -18,7 +18,8 @@ Every push to the `main` branch on GitHub redeploys the site automatically.
 |---|---|---|
 | `DATABASE_URL` | Connection string for the `grepless_app` database role (transaction pooler, port 6543) | yes |
 | `ONNXRUNTIME_NODE_INSTALL_CUDA` | `skip`. Stops the build from downloading about 300 MB of GPU libraries it doesn't need | yes |
-| `GROQ_API_KEY` | Turns on the optional **Explain** button using Groq's free API (no card needed) | no |
+| `GEMINI_API_KEY` | Turns on the optional **Explain** button, using Google Gemini's free tier (tried first) | no |
+| `GROQ_API_KEY` | Groq's free API, used automatically if Gemini fails or hits its limit | no |
 | `EXPLAIN_ENABLED` / `EXPLAIN_MODEL` | Alternative: `EXPLAIN_ENABLED=true` uses Vercel AI Gateway instead (Vercel requires a card on the account to unlock its free AI credits) | no |
 | `GITHUB_TOKEN` | Only used to show repo description and stars without GitHub's 60-requests/hour limit | no |
 
@@ -31,12 +32,12 @@ Without it, a busy day may occasionally show a repo without its description or s
 5. **Key:** `GITHUB_TOKEN` · **Value:** paste · keep all environments ticked · **Save**.
 6. Go to the **Deployments** tab → on the top deployment click **⋯** → **Redeploy**.
 
-### Optional: turn on the ✦ Explain button (3 minutes, free, no card)
-Search works fully without it. The button adds a one-sentence AI summary under each result, and it stays hidden until you do this.
-1. Open https://console.groq.com/keys and sign in with Google or GitHub.
-2. Click **Create API Key**, name it `grepless`, click **Submit**, and copy the key (it starts with `gsk_`).
+### Optional: turn on the ✦ Explain button (free, no card)
+Search works fully without it. The button adds a one-sentence AI summary under each result. Gemini answers first; if it fails, Groq answers instead. The button stays hidden until at least one key is set.
+1. Gemini key: https://aistudio.google.com/apikey → **Create API key** → copy.
+2. Groq key: https://console.groq.com/keys → **Create API Key** → copy (starts with `gsk_`).
 3. Open https://vercel.com/core-dumped1/grepless/settings/environment-variables
-4. **Key:** `GROQ_API_KEY` · **Value:** paste · keep all environments ticked · **Save**.
+4. Add `GEMINI_API_KEY` = the Gemini key, then `GROQ_API_KEY` = the Groq key (Production + Preview ticked, **Sensitive** on) → **Save**.
 5. **Deployments** tab → top deployment → **⋯** → **Redeploy**. The ✦ Explain button now appears on every result.
 
 ## Limits (see `lib/config.ts`)

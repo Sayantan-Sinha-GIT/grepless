@@ -26,17 +26,17 @@ export async function POST(req: Request) {
       select path, symbol, language, content from chunks where id = ${chunkId}`;
     if (!chunk) return json({ error: 'Result not found' }, 404);
 
-    const text = await complete(
+    const { text, provider } = await complete(
       'You explain code to developers. Reply with exactly one plain-English sentence (max 30 words). ' +
         'Say what the code does, and if a question is given, how it relates to it. No markdown, no preamble.',
       `Question: ${query || '(none)'}\n` +
         `File: ${chunk.path}${chunk.symbol ? ` — ${chunk.symbol}` : ''} (${chunk.language})\n\n` +
         chunk.content.slice(0, 4000),
     );
-    const explanation = text.trim().replace(/\s+/g, ' ');
+    const explanation = text.replace(/\s+/g, ' ');
     if (cache.size > 500) cache.clear();
     cache.set(key, explanation);
-    return json({ explanation });
+    return json({ explanation, provider });
   } catch (err) {
     console.warn('[explain] unavailable', err instanceof Error ? err.message : err);
     return json({ error: 'AI explanations are unavailable right now.' }, 503);

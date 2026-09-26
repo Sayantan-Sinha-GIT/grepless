@@ -35,6 +35,7 @@ export function ResultCard({
   const codeRef = useRef<HTMLDivElement>(null);
   const [explanation, setExplanation] = useState<string | null>(null);
   const [explaining, setExplaining] = useState(false);
+  const [provider, setProvider] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const lines = useMemo(() => highlight(hit.content).split('\n'), [hit.content]);
@@ -61,6 +62,7 @@ export function ResultCard({
       });
       const data = await res.json();
       setExplanation(res.ok ? data.explanation : (data.error ?? 'Explanation unavailable.'));
+      setProvider(res.ok && data.provider ? data.provider : null);
     } catch {
       setExplanation('Explanation unavailable.');
     } finally {
@@ -147,7 +149,16 @@ export function ResultCard({
         <span className="ml-auto hidden font-mono text-faint sm:inline">
           {hit.semanticRank ? `semantic #${hit.semanticRank}` : 'semantic —'} · {hit.keywordRank ? `keyword #${hit.keywordRank}` : 'keyword —'}
         </span>
-        {explanation && <p className="w-full pt-1 text-sm leading-relaxed text-fg">{explanation}</p>}
+        {explanation && (
+          <p className="w-full pt-1 text-sm leading-relaxed text-fg">
+            {explanation}
+            {provider && (
+              <span className="ml-2 font-mono text-[11px] text-faint">
+                via {provider === 'gemini' ? 'Gemini' : provider === 'groq' ? 'Groq' : 'AI Gateway'}
+              </span>
+            )}
+          </p>
+        )}
       </footer>
     </article>
   );

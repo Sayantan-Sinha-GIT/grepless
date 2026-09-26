@@ -68,7 +68,7 @@ Text search (`grep`, GitHub search) only works when you already know the identif
 ### Nice-to-have
 | # | Feature | Status |
 |---|---|---|
-| 13 | One-line AI explanation of a result | Built. An optional **Explain** button, and the only LLM call in the product. The provider is Groq (free key) or Vercel AI Gateway. The button stays hidden until a provider is configured (see `docs/SETUP.md`). |
+| 13 | One-line AI explanation of a result | Built. An optional **Explain** button, and the only LLM call in the product. Providers are tried in order: Gemini free tier, then Groq free tier if Gemini fails, then (optionally) Vercel AI Gateway. The button stays hidden until a provider is configured (see `docs/SETUP.md`). |
 | 14 | GitHub OAuth for private repos | Deferred. Requires a GitHub OAuth App, which cannot be created programmatically. Steps are in `docs/SETUP.md`. |
 
 ## 6. System design
