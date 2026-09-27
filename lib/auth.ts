@@ -20,7 +20,7 @@ import {
   type TokenSet,
 } from './githubApp';
 import { fetchRepoMeta, NOT_FOUND_SIGNED_IN, NOT_FOUND_SIGNED_OUT, RepoError, type RepoRef } from './github';
-import { getRepoBySlug, grantRepoAccess, revokeRepoAccess, upsertRepo, type Repo } from './repos';
+import { getRepoBySlug, grantRepoAccess, markRepoPublic, revokeRepoAccess, upsertRepo, type Repo } from './repos';
 
 export const SESSION_COOKIE = 'gl_session';
 export const STATE_COOKIE = 'gl_oauth';
@@ -129,14 +129,34 @@ export async function userToken(userId: string): Promise<string | null> {
 /**
  * Public repos are open to everyone. A private repo is visible to a signed-in
  * person with a fresh access row, or once GitHub confirms (with their token)
- * that they can read it. Access rows are re-checked hourly.
+ * that they can read it. Access rows are re-checked hourly. A private repo
+ * that has since been made public on GitHub opens up for everyone.
  */
 export async function canAccessRepo(
   repo: Pick<Repo, 'id' | 'owner' | 'name' | 'is_private'>,
   viewer: Viewer | null,
 ): Promise<boolean> {
   if (!repo.is_private) return true;
-  if (!viewer) return false;
+  if (viewer && (await viewerCanSee(repo, viewer))) return true;
+  return becamePublic(repo);
+}
+
+// A repo indexed while private may have been made public on GitHub since.
+// Asked anonymously, at most once per repo every 10 minutes per server.
+const publicChecks = new Map<string, number>();
+async function becamePublic(repo: Pick<Repo, 'id' | 'owner' | 'name' | 'is_private'>): Promise<boolean> {
+  const last = publicChecks.get(repo.id);
+  if (last && Date.now() - last < 10 * 60 * 1000) return false;
+  if (publicChecks.size > 1000) publicChecks.clear();
+  publicChecks.set(repo.id, Date.now());
+  const meta = await fetchRepoMeta({ owner: repo.owner, name: repo.name }).catch(() => null);
+  if (!meta || meta.isPrivate) return false;
+  await markRepoPublic(repo.id);
+  repo.is_private = false; // callers render this row right away
+  return true;
+}
+
+async function viewerCanSee(repo: Pick<Repo, 'id' | 'owner' | 'name'>, viewer: Viewer): Promise<boolean> {
   const [row] = await db()<{ verified_at: Date }[]>`
     select verified_at from repo_access where repo_id = ${repo.id}::uuid and user_id = ${viewer.id}::bigint`;
   if (row && Date.now() - new Date(row.verified_at).getTime() < ACCESS_RECHECK_MS) return true;

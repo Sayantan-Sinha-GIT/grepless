@@ -188,6 +188,6 @@ Browser ──POST /api/repos──────────▶ create/lookup rep
 
 **Token renewal.** Tokens are renewed a minute before expiry, inside a transaction holding a row lock, because refresh tokens are single-use.
 
-**Access checks.** Public repo: everyone. Private repo: a `repo_access` row verified in the last hour, else GitHub is asked with the person's token (`GET /repos/{owner}/{name}`). "Yes" grants, "no" revokes, and "GitHub unreachable" keeps existing access but never grants new access.
+**Access checks.** Public repo: everyone. Private repo: a `repo_access` row verified in the last hour, else GitHub is asked with the person's token (`GET /repos/{owner}/{name}`). "Yes" grants, "no" revokes, and "GitHub unreachable" keeps existing access but never grants new access. If a private repo has since been made public on GitHub (checked anonymously, at most every 10 minutes per server), it opens up for everyone.
 
 **Configuration (Vercel env).** `GITHUB_APP_SLUG`, `GITHUB_APP_ID`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `AUTH_SECRET`. Sign-in stays hidden until all of these are set. The app is created with `node scripts/create-github-app.mjs` (GitHub's manifest flow: one click on GitHub).

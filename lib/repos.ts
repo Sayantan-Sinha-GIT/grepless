@@ -116,6 +116,10 @@ export async function grantRepoAccess(repoId: string, userId: string): Promise<v
     on conflict (repo_id, user_id) do update set verified_at = now()`;
 }
 
+export async function markRepoPublic(repoId: string): Promise<void> {
+  await db()`update repos set is_private = false where id = ${repoId}::uuid`;
+}
+
 export async function revokeRepoAccess(repoId: string, userId: string): Promise<void> {
   await db()`delete from repo_access where repo_id = ${repoId}::uuid and user_id = ${userId}::bigint`;
 }
