@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { RepoWorkspace } from '@/components/RepoWorkspace';
+import { PageShell } from '@/components/chrome/PageShell';
+import { Workspace } from '@/components/repo/Workspace';
 import { explainEnabled } from '@/lib/explain';
 import { parseRepoInput } from '@/lib/github';
 import { getRepoBySlug, publicRepo, upsertRepo } from '@/lib/repos';
@@ -25,10 +26,12 @@ export default async function RepoPage({ params, searchParams }: PageProps<'/r/[
   const q = (await searchParams).q;
 
   return (
-    <RepoWorkspace
-      initialRepo={publicRepo(repo)}
-      initialQuery={typeof q === 'string' ? q : ''}
-      explain={explainEnabled()}
-    />
+    <PageShell>
+      <Workspace
+        initialRepo={publicRepo(repo)}
+        initialQuery={typeof q === 'string' ? q : ''}
+        explain={explainEnabled()}
+      />
+    </PageShell>
   );
 }

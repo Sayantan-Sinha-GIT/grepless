@@ -1,140 +1,112 @@
+import Link from 'next/link';
+import { PageShell } from '@/components/chrome/PageShell';
+import { Marquee } from '@/components/fx/Marquee';
+import { Reveal } from '@/components/fx/motion';
+import { FeatureBento } from '@/components/home/FeatureBento';
+import { Hero } from '@/components/home/Hero';
+import { LiveDemo } from '@/components/home/LiveDemo';
+import { PipelineStrip } from '@/components/home/PipelineStrip';
 import { RepoCard } from '@/components/RepoCard';
 import { RepoInput } from '@/components/RepoInput';
-import { YourRepos } from '@/components/YourRepos';
-import { listRecentRepos, publicRepo, type PublicRepo } from '@/lib/repos';
+import { languageColor } from '@/lib/client/languageColors';
+import { withTimeout } from '@/lib/db';
+import { getRepoBySlug, getSiteStats, listRecentRepos, publicRepo, type PublicRepo, type SiteStats } from '@/lib/repos';
 
 export const dynamic = 'force-dynamic';
 
-const STEPS = [
-  {
-    n: '01',
-    title: 'Fetch',
-    body: 'One gzip tarball from GitHub, streamed through a tiny tar reader. No clone and no per-file API calls. The commit SHA is pinned from the archive header so every link is a permalink.',
-    meta: 'codeload.github.com · streaming',
-  },
-  {
-    n: '02',
-    title: 'Filter',
-    body: 'Dependencies, build output, lockfiles, minified bundles, binaries and files over 200 KB are dropped before anything is read into memory.',
-    meta: 'node_modules · dist · *.lock · *.min.js',
-  },
-  {
-    n: '03',
-    title: 'Chunk by syntax',
-    body: 'tree-sitter parses 13 languages. Chunks follow functions, classes and methods: oversized nodes split along their children, tiny neighbours merge, and each chunk keeps its qualified name.',
-    meta: 'tree-sitter · AST-aware · ≤1,500 chars',
-  },
-  {
-    n: '04',
-    title: 'Embed locally',
-    body: 'gte-small runs inside the serverless function through ONNX Runtime. There is no embedding API and no key. Work is split into small, resumable batches claimed with SKIP LOCKED.',
-    meta: 'gte-small · 384-d · int8 ONNX',
-  },
-  {
-    n: '05',
-    title: 'Hybrid retrieval',
-    body: 'Your question is embedded with the same model. The top 40 by cosine distance (HNSW) and the top 40 by Postgres full-text rank are fused with Reciprocal Rank Fusion.',
-    meta: 'pgvector HNSW ⊕ tsvector · RRF k=60',
-  },
-];
+const LANGUAGES = ['TypeScript', 'Python', 'Go', 'Rust', 'Java', 'C#', 'C++', 'Ruby', 'PHP', 'JavaScript', 'Shell', 'CSS', 'Markdown'];
 
-export default async function Home() {
-  let recent: PublicRepo[] = [];
-  try {
-    recent = (await listRecentRepos(9)).map(publicRepo);
-  } catch (err) {
-    console.error('[home] could not load recent repos', err);
-  }
+const EMPTY_STATS: SiteStats = { repos: 0, chunks: 0, searches: 0, files: 0 };
 
-  return (
-    <main>
-      <section className="relative overflow-hidden">
-        <div className="grid-bg pointer-events-none absolute inset-0" aria-hidden="true" />
-        <div className="relative mx-auto max-w-6xl px-4 pb-16 pt-16 sm:px-6 sm:pt-24">
-          <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-line bg-raised px-3 py-1 font-mono text-xs text-muted">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-            semantic code search · free · no sign-in
-          </p>
-          <h1 className="max-w-3xl text-4xl font-semibold leading-[1.05] tracking-tight text-balance sm:text-6xl">
-            Search code by what it does, <span className="text-muted">not what it&apos;s called.</span>
-          </h1>
-          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-muted text-pretty">
-            Paste a public GitHub repo and ask things like{' '}
-            <span className="font-mono text-[15px] text-fg">“where do we retry failed requests?”</span>. grepless
-            splits the code into functions and classes, embeds each one, and ranks them by meaning, so you find
-            the code even when you don&apos;t know its name.
-          </p>
-          <div className="mt-9 max-w-2xl">
-            <RepoInput autoFocus />
-          </div>
-          <div className="mt-5">
-            <YourRepos />
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-6xl px-4 sm:px-6">
-        <div className="mb-4 flex items-baseline justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted">Recently indexed</h2>
-          <p className="text-xs text-faint">Open one to search it instantly</p>
-        </div>
-        {recent.length ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {recent.map((r) => (
-              <RepoCard key={r.id} repo={r} />
-            ))}
-          </div>
-        ) : (
-          <p className="rounded-xl border border-dashed border-line p-8 text-center text-sm text-muted">
-            Nothing indexed yet. Be the first: paste a repo above.
-          </p>
-        )}
-      </section>
-
-      <section id="how-it-works" className="mx-auto mt-24 max-w-6xl scroll-mt-20 px-4 sm:px-6">
-        <div className="max-w-2xl">
-          <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">How it works</h2>
-          <p className="mt-3 text-muted">
-            A retrieval pipeline you can inspect end to end. The only LLM call is the optional one-line
-            <span className="text-fg"> Explain</span> button; search itself is embeddings and ranking.
-          </p>
-        </div>
-        <ol className="mt-10 grid gap-px overflow-hidden rounded-xl border border-line bg-line md:grid-cols-5">
-          {STEPS.map((s) => (
-            <li key={s.n} className="flex flex-col gap-3 bg-raised p-5">
-              <span className="font-mono text-xs text-accent">{s.n}</span>
-              <h3 className="font-semibold">{s.title}</h3>
-              <p className="text-sm leading-relaxed text-muted">{s.body}</p>
-              <p className="mt-auto pt-2 font-mono text-[11px] leading-relaxed text-faint">{s.meta}</p>
-            </li>
-          ))}
-        </ol>
-
-        <div className="mt-6 grid gap-3 md:grid-cols-3">
-          <Fact title="Why hybrid?">
-            Small embedding models blur exact identifiers. Full-text search on split identifiers (
-            <code className="font-mono text-fg">useAuthRetry → use auth retry</code>) catches them, and RRF merges
-            both rankings without tuning score scales.
-          </Fact>
-          <Fact title="Why this matched">
-            Every result says whether it matched on meaning, keywords or both, which words it shares with your
-            question, and which lines to look at.
-          </Fact>
-          <Fact title="Incremental re-index">
-            Files are hashed. A re-index downloads the latest commit and re-embeds only the files whose content
-            changed, so a small push costs seconds, not minutes.
-          </Fact>
-        </div>
-      </section>
-    </main>
-  );
+async function loadHome() {
+  // The landing page must render even if the database is slow: each piece
+  // falls back independently after a few seconds.
+  const [recent, stats, demo] = await Promise.all([
+    withTimeout(listRecentRepos(6), 6000, [], 'recent repos'),
+    withTimeout(getSiteStats(), 6000, EMPTY_STATS, 'site stats'),
+    withTimeout(getRepoBySlug('sindresorhus', 'ky'), 6000, null, 'demo repo'),
+  ]);
+  return {
+    recent: recent.map(publicRepo) as PublicRepo[],
+    stats,
+    demo:
+      demo && demo.embedded_chunks > 0
+        ? { id: demo.id, owner: demo.owner, name: demo.name, commitSha: demo.commit_sha }
+        : null,
+  };
 }
 
-function Fact({ title, children }: { title: string; children: React.ReactNode }) {
+export default async function Home() {
+  const { recent, stats, demo } = await loadHome();
+
   return (
-    <div className="rounded-xl border border-line p-5">
-      <h3 className="text-sm font-semibold">{title}</h3>
-      <p className="mt-2 text-sm leading-relaxed text-muted">{children}</p>
-    </div>
+    <PageShell>
+      <Hero stats={stats} />
+
+      <div className="relative -mx-[5vw] -mt-6 w-[110vw] rotate-[-2deg] border-y border-line bg-surface/70 py-4 backdrop-blur-md">
+        <Marquee duration={45}>
+          {LANGUAGES.map((l) => (
+            <span key={l} className="mx-6 flex items-center gap-3 font-display text-2xl font-light tracking-tight sm:text-3xl">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: languageColor(l) }} />
+              {l}
+            </span>
+          ))}
+        </Marquee>
+      </div>
+
+      <div className="mt-28 space-y-28 sm:mt-36 sm:space-y-36">
+        <LiveDemo repo={demo} />
+        <FeatureBento />
+        <PipelineStrip />
+
+        <section className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="flex items-end justify-between gap-4">
+            <Reveal>
+              <h2 className="font-display text-4xl font-light tracking-[-0.035em] sm:text-5xl">Recently indexed</h2>
+            </Reveal>
+            <Reveal delay={0.05}>
+              <Link href="/explore" className="text-sm font-medium text-brand hover:underline">
+                Explore all →
+              </Link>
+            </Reveal>
+          </div>
+          {recent.length ? (
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {recent.map((r, i) => (
+                <Reveal key={r.id} delay={i * 0.06}>
+                  <RepoCard repo={r} />
+                </Reveal>
+              ))}
+            </div>
+          ) : (
+            <p className="sheet mt-8 p-10 text-center text-dim">Nothing indexed yet. Paste a repo above to be the first.</p>
+          )}
+        </section>
+
+        <section className="mx-auto max-w-6xl px-4 sm:px-6">
+          <Reveal>
+            <div className="sheet relative overflow-hidden px-6 py-16 text-center sm:px-16 sm:py-24">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 opacity-70"
+                style={{
+                  background:
+                    'radial-gradient(60% 80% at 50% 110%, color-mix(in oklab, var(--brand) 35%, transparent), transparent 70%)',
+                }}
+              />
+              <h2 className="relative mx-auto max-w-3xl font-display text-4xl font-light leading-[1.02] tracking-[-0.04em] sm:text-7xl">
+                Your repo, <span className="text-gradient italic">searchable</span> in about a minute.
+              </h2>
+              <p className="relative mx-auto mt-5 max-w-lg text-dim">
+                No sign-in, no API key, no install. Paste a public GitHub repo and start asking.
+              </p>
+              <div className="relative mx-auto mt-10 max-w-xl text-left">
+                <RepoInput examples={false} />
+              </div>
+            </div>
+          </Reveal>
+        </section>
+      </div>
+    </PageShell>
   );
 }

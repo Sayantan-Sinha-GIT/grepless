@@ -1,10 +1,15 @@
 import type { Metadata, Viewport } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
-import { SiteHeader } from '@/components/SiteHeader';
+import { Bricolage_Grotesque, JetBrains_Mono, Onest } from 'next/font/google';
+import { Background } from '@/components/chrome/Background';
+import { Providers } from '@/components/chrome/Providers';
+import { SiteFooter } from '@/components/chrome/SiteFooter';
+import { SiteHeader } from '@/components/chrome/SiteHeader';
+import { THEME_BOOT_SCRIPT } from '@/lib/themeScript';
 import './globals.css';
 
-const sans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' });
-const mono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' });
+const display = Bricolage_Grotesque({ subsets: ['latin'], variable: '--font-bricolage', display: 'swap' });
+const sans = Onest({ subsets: ['latin'], variable: '--font-onest', display: 'swap' });
+const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains', display: 'swap' });
 
 const siteUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
   ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
@@ -13,13 +18,13 @@ const siteUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: 'grepless — search code by meaning',
+    default: 'grepless · search code by meaning',
     template: '%s · grepless',
   },
   description:
     'Paste a public GitHub repo and ask questions like “where do we retry failed auth requests?”. AST chunking, local embeddings and pgvector hybrid search.',
   openGraph: {
-    title: 'grepless — search code by meaning',
+    title: 'grepless · search code by meaning',
     description: 'Semantic code search over any public GitHub repository.',
     type: 'website',
   },
@@ -27,24 +32,37 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: dark)', color: '#0a0b0d' },
-    { media: '(prefers-color-scheme: light)', color: '#fafaf8' },
+    { media: '(prefers-color-scheme: dark)', color: '#08070e' },
+    { media: '(prefers-color-scheme: light)', color: '#f4f2fb' },
   ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+    <html
+      lang="en"
+      data-theme="dark"
+      suppressHydrationWarning
+      className={`${display.variable} ${sans.variable} ${mono.variable}`}
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body className="min-h-dvh">
-        <SiteHeader />
-        {children}
-        <footer className="mt-24 border-t border-line">
-          <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-8 text-sm text-faint sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <p>grepless · built by Sayantan-Sinha-GIT</p>
-            <p className="font-mono text-xs">gte-small · pgvector HNSW · tree-sitter · Next.js on Vercel</p>
-          </div>
-        </footer>
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-full focus:bg-brand focus:px-4 focus:py-2 focus:text-on-brand"
+        >
+          Skip to content
+        </a>
+        <Providers>
+          <Background />
+          <SiteHeader />
+          {children}
+          <SiteFooter />
+        </Providers>
       </body>
     </html>
   );

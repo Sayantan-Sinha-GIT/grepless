@@ -1,4 +1,4 @@
-// Guard rails for a free-tier deployment. Documented in docs/PRD.md §7.
+// Guard rails for a free-tier deployment. Documented in PRD.md §8.
 export const LIMITS = {
   maxTarballBytes: 60 * 1024 * 1024,
   maxFiles: 1500,
