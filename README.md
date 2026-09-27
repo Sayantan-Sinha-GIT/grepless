@@ -62,6 +62,13 @@ npm run qa -- http://localhost:3000   # browser sweep: pages × themes × phone/
 npm run test:chunker -- path/to/file.ts
 ```
 
+## How it was built
+
+I built grepless with **Claude Code**, Anthropic's AI coding agent, as my pair programmer. I decided what
+the product should do and how it should look, set the constraints (free tiers only, no paid APIs, a
+self-hosted embedding model), and directed every iteration. Claude Code wrote, tested and deployed the
+code. The reasoning behind each design decision is written up in [PRD.md](PRD.md).
+
 ## Docs
 
 - [Product requirements (PRD.md)](PRD.md)

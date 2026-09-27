@@ -8,6 +8,4 @@ next-env.d.ts
 .env*.local
 .DS_Store
 npm-debug.log*
-
-# Private reference material (not part of the app)
 tsconfig.tsbuildinfo
