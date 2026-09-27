@@ -65,7 +65,7 @@ grepless is a **GitHub App** named `grepless`, owned by `Sayantan-Sinha-GIT`. It
 
 The sign-in button stays hidden until all five are set.
 
-- App settings: https://github.com/settings/apps/grepless
+- App settings: https://github.com/settings/apps/grepless-search
 - Who has installed it: https://github.com/settings/installations
 - To recreate the app from scratch: `node scripts/create-github-app.mjs`, click the button, then **Create GitHub App** on GitHub. It writes the values to `.env.local`.
 
