@@ -52,9 +52,26 @@ Search works fully without it. The button adds a one-sentence AI summary under e
 | Site shows a server error | Vercel → grepless → **Logs**, and look at the red lines. |
 | Database paused | Free Supabase projects pause after 7 days without traffic. Open the Supabase dashboard → project → **Restore**. |
 
-## Future: private repos (GitHub OAuth)
-This is the one feature that needs a manual step, because GitHub doesn't allow apps to create OAuth apps. If you want it later:
-1. https://github.com/settings/applications/new
-2. **Application name:** `grepless` · **Homepage URL:** `https://grepless.vercel.app` · **Authorization callback URL:** `https://grepless.vercel.app/api/auth/callback`
-3. Register, then **Generate a new client secret**.
-4. Add them in Vercel (same page as above) as `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`. Don't paste the secret into chats or commit it to GitHub.
+## Sign in with GitHub (private repos)
+
+grepless is a **GitHub App** named `grepless`, owned by `Sayantan-Sinha-GIT`. It can only *read* code and basic repo details, and only for repos someone chose to share with it.
+
+| Name (Vercel env) | What it is |
+|---|---|
+| `GITHUB_APP_SLUG` | The app's short name, used in `github.com/apps/<slug>` |
+| `GITHUB_APP_ID` | The app's number |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Let the site swap GitHub's sign-in code for a token |
+| `AUTH_SECRET` | Random 43 characters. Encrypts GitHub tokens in the database. **Changing it signs everyone out.** |
+
+The sign-in button stays hidden until all five are set.
+
+- App settings: https://github.com/settings/apps/grepless
+- Who has installed it: https://github.com/settings/installations
+- To recreate the app from scratch: `node scripts/create-github-app.mjs`, click the button, then **Create GitHub App** on GitHub. It writes the values to `.env.local`.
+
+### Troubleshooting sign-in
+| Symptom | What to do |
+|---|---|
+| "GitHub did not complete the sign-in" | Try again. If it keeps happening, check the Vercel logs for `[auth] callback failed`. |
+| A private repo says "Not one of yours" | On `/me`, click **Add or remove repos** and tick that repo on GitHub. |
+| Sign-in button missing | One of the five variables above is missing in Vercel. |

@@ -1,4 +1,4 @@
-// Fetches a public repository as a single gzip tarball (no clone, no
+// Fetches a repository as a single gzip tarball (no clone, no
 // per-file API calls) and streams its entries through a small tar reader.
 // The commit SHA comes from the tarball's pax global header, so result links
 // can point at an immutable permalink.
@@ -9,10 +9,17 @@ export class RepoError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** True when signing in with GitHub could fix it (the repo may be private). */
+    readonly needsAuth = false,
   ) {
     super(message);
   }
 }
+
+export const NOT_FOUND_SIGNED_OUT =
+  'Repository not found. If it is private, sign in with GitHub and give grepless access to it.';
+export const NOT_FOUND_SIGNED_IN =
+  'Repository not found, or grepless has not been given access to it. Check the name, or add it under “Your repos”.';
 
 export interface RepoRef {
   owner: string;
@@ -41,26 +48,33 @@ export interface RepoMeta {
   description: string | null;
   stars: number | null;
   language: string | null;
+  isPrivate: boolean;
 }
 
 /**
- * Optional metadata from the REST API. Unauthenticated calls are limited to
- * 60/hour per IP, so a rate-limit response is not fatal: we index anyway.
+ * Metadata from the REST API. With a signed-in person's token this also sees
+ * the private repos they granted to grepless. Unauthenticated calls are
+ * limited to 60/hour per IP, so a rate-limit response is not fatal: we index anyway.
  */
-export async function fetchRepoMeta(ref: RepoRef): Promise<RepoMeta | null> {
+export async function fetchRepoMeta(ref: RepoRef, userToken?: string | null): Promise<RepoMeta | null> {
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github+json',
     'User-Agent': 'grepless',
     'X-GitHub-Api-Version': '2022-11-28',
   };
-  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  const token = userToken || process.env.GITHUB_TOKEN;
+  if (token) headers.Authorization = `Bearer ${token}`;
   try {
     const res = await fetch(`https://api.github.com/repos/${ref.owner}/${ref.name}`, {
       headers,
       signal: AbortSignal.timeout(8000),
       cache: 'no-store',
     });
-    if (res.status === 404) throw new RepoError('Repository not found. Only public GitHub repositories are supported.', 404);
+    if (res.status === 404) {
+      throw userToken
+        ? new RepoError(NOT_FOUND_SIGNED_IN, 404)
+        : new RepoError(NOT_FOUND_SIGNED_OUT, 404, true);
+    }
     if (!res.ok) return null;
     const data = (await res.json()) as {
       private: boolean;
@@ -70,13 +84,14 @@ export async function fetchRepoMeta(ref: RepoRef): Promise<RepoMeta | null> {
       stargazers_count: number;
       language: string | null;
     };
-    if (data.private) throw new RepoError('This repository is private. Only public repositories are supported.', 403);
+    if (data.private && !userToken) throw new RepoError(NOT_FOUND_SIGNED_OUT, 404, true);
     return {
       owner: data.owner.login,
       name: data.name,
       description: data.description,
       stars: data.stargazers_count,
       language: data.language,
+      isPrivate: data.private,
     };
   } catch (err) {
     if (err instanceof RepoError) throw err;
@@ -170,18 +185,33 @@ function limitBytes(max: number, message: string) {
 /**
  * Streams the repository's default branch. `wantContent(path, size)` decides
  * whether a file body is buffered or skipped without being held in memory.
+ * Public repos come straight from codeload (no API rate limit); private ones
+ * go through the API with the person's token, which redirects to a
+ * short-lived signed codeload URL.
  */
 export async function downloadRepo(
   ref: RepoRef,
   wantContent: (path: string, size: number) => boolean,
+  userToken?: string | null,
 ): Promise<RepoDownload> {
-  const res = await fetch(`https://codeload.github.com/${ref.owner}/${ref.name}/tar.gz/HEAD`, {
-    headers: { 'User-Agent': 'grepless' },
-    signal: AbortSignal.timeout(120_000),
-    cache: 'no-store',
-  });
-  if (res.status === 404) {
-    throw new RepoError('Repository not found. Check the URL — only public GitHub repositories are supported.', 404);
+  const res = userToken
+    ? await fetch(`https://api.github.com/repos/${ref.owner}/${ref.name}/tarball`, {
+        headers: {
+          Accept: 'application/vnd.github+json',
+          Authorization: `Bearer ${userToken}`,
+          'User-Agent': 'grepless',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+        signal: AbortSignal.timeout(120_000),
+        cache: 'no-store',
+      })
+    : await fetch(`https://codeload.github.com/${ref.owner}/${ref.name}/tar.gz/HEAD`, {
+        headers: { 'User-Agent': 'grepless' },
+        signal: AbortSignal.timeout(120_000),
+        cache: 'no-store',
+      });
+  if (res.status === 404 || res.status === 401 || res.status === 403) {
+    throw userToken ? new RepoError(NOT_FOUND_SIGNED_IN, 404) : new RepoError(NOT_FOUND_SIGNED_OUT, 404, true);
   }
   if (!res.ok || !res.body) throw new RepoError(`GitHub returned ${res.status} while downloading the repository.`, 502);
 

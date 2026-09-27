@@ -22,13 +22,14 @@ export interface Repo {
   updated_at: string;
   indexed_at: string | null;
   search_count: number;
+  is_private: boolean;
 }
 
 // Every query here is a tagged template. `sql.unsafe(text, params)` makes
 // postgres.js ask the server to describe parameter types first, and that
 // round trip stalls indefinitely behind Supabase's transaction pooler.
 const COLUMNS = `id, owner, name, slug, description, stars, primary_language, commit_sha, status, status_message,
-  total_files, skipped_files, total_chunks, embedded_chunks, languages, created_at, updated_at, indexed_at, search_count`;
+  total_files, skipped_files, total_chunks, embedded_chunks, languages, created_at, updated_at, indexed_at, search_count, is_private`;
 
 export async function getRepo(id: string): Promise<Repo | null> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
@@ -47,7 +48,7 @@ export async function getRepoBySlug(owner: string, name: string): Promise<Repo |
 export async function listRecentRepos(limit = 12): Promise<Repo[]> {
   const sql = db();
   return sql<Repo[]>`
-    select ${sql.unsafe(COLUMNS)} from repos where status <> 'error'
+    select ${sql.unsafe(COLUMNS)} from repos where status <> 'error' and not is_private
     order by (status = 'ready') desc, coalesce(indexed_at, updated_at) desc
     limit ${limit}`;
 }
@@ -55,7 +56,7 @@ export async function listRecentRepos(limit = 12): Promise<Repo[]> {
 export async function listAllRepos(limit = 200): Promise<Repo[]> {
   const sql = db();
   return sql<Repo[]>`
-    select ${sql.unsafe(COLUMNS)} from repos where status <> 'error' or indexed_at is not null
+    select ${sql.unsafe(COLUMNS)} from repos where (status <> 'error' or indexed_at is not null) and not is_private
     order by coalesce(indexed_at, updated_at) desc
     limit ${limit}`;
 }
@@ -67,7 +68,7 @@ export interface SiteStats {
   files: number;
 }
 
-/** Live totals for the landing page counters. */
+/** Live totals for the landing page counters (public repos only). */
 export async function getSiteStats(): Promise<SiteStats> {
   const sql = db();
   const [row] = await sql<SiteStats[]>`
@@ -76,16 +77,21 @@ export async function getSiteStats(): Promise<SiteStats> {
       coalesce(sum(embedded_chunks), 0)::int as chunks,
       coalesce(sum(search_count), 0)::int as searches,
       coalesce(sum(total_files), 0)::int as files
-    from repos`;
+    from repos where not is_private`;
   return row;
 }
 
-/** Inserts the repo as `queued`, or returns the existing row (re-queuing it if it had failed). */
-export async function upsertRepo(owner: string, name: string): Promise<Repo> {
+/**
+ * Inserts the repo as `queued`, or returns the existing row (re-queuing it if
+ * it had failed). A repo marked private stays private until a re-index with
+ * a token sees it public again.
+ */
+export async function upsertRepo(owner: string, name: string, isPrivate = false): Promise<Repo> {
   const sql = db();
   const rows = await sql<Repo[]>`
-    insert into repos (owner, name) values (${owner}, ${name})
+    insert into repos (owner, name, is_private) values (${owner}, ${name}, ${isPrivate})
     on conflict (slug) do update set
+      is_private = repos.is_private or excluded.is_private,
       status = case when repos.status = 'error' then 'queued' else repos.status end,
       status_message = case when repos.status = 'error' then null else repos.status_message end,
       updated_at = case when repos.status = 'error' then now() else repos.updated_at end
@@ -101,6 +107,24 @@ export async function requeueRepo(id: string): Promise<Repo | null> {
     where id = ${id}::uuid and status in ('ready', 'error')
     returning ${sql.unsafe(COLUMNS)}`;
   return rows[0] ?? getRepo(id);
+}
+
+/** Records that this person may see this (private) repo's index. */
+export async function grantRepoAccess(repoId: string, userId: string): Promise<void> {
+  await db()`
+    insert into repo_access (repo_id, user_id) values (${repoId}::uuid, ${userId}::bigint)
+    on conflict (repo_id, user_id) do update set verified_at = now()`;
+}
+
+export async function revokeRepoAccess(repoId: string, userId: string): Promise<void> {
+  await db()`delete from repo_access where repo_id = ${repoId}::uuid and user_id = ${userId}::bigint`;
+}
+
+/** Index status for a batch of slugs, for the "Your repos" dashboard. */
+export async function reposBySlugs(slugs: string[]): Promise<Repo[]> {
+  if (!slugs.length) return [];
+  const sql = db();
+  return sql<Repo[]>`select ${sql.unsafe(COLUMNS)} from repos where slug in ${sql(slugs.map((s) => s.toLowerCase()))}`;
 }
 
 /** Public shape sent to the browser. */
@@ -123,6 +147,7 @@ export function publicRepo(r: Repo) {
     indexedAt: r.indexed_at ? new Date(r.indexed_at).toISOString() : null,
     updatedAt: new Date(r.updated_at).toISOString(),
     searchCount: r.search_count,
+    isPrivate: r.is_private,
   };
 }
 

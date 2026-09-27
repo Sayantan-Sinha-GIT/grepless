@@ -1,6 +1,7 @@
+import { getViewer, openRepo } from '@/lib/auth';
 import { parseRepoInput } from '@/lib/github';
 import { errorResponse, json, readJson } from '@/lib/http';
-import { listRecentRepos, publicRepo, upsertRepo } from '@/lib/repos';
+import { listRecentRepos, publicRepo } from '@/lib/repos';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,8 +21,9 @@ export async function POST(req: Request) {
     return json({ error: 'Paste a GitHub repository like github.com/owner/repo or owner/repo.' }, 400);
   }
   try {
-    const repo = await upsertRepo(ref.owner, ref.name);
-    return json({ repo: publicRepo(repo) });
+    const result = await openRepo(ref, await getViewer(), { requeueErrors: true });
+    if ('denied' in result) return json({ error: result.denied.message, needsAuth: result.denied.needsAuth || undefined }, 404);
+    return json({ repo: publicRepo(result.repo) });
   } catch (err) {
     return errorResponse(err);
   }

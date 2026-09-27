@@ -1,3 +1,4 @@
+import { accessibleRepo } from '@/lib/auth';
 import { errorResponse, json, readJson } from '@/lib/http';
 import { getRepo } from '@/lib/repos';
 import { searchRepo } from '@/lib/search';
@@ -13,8 +14,9 @@ export async function POST(req: Request) {
     ? body.languages.filter((l): l is string => typeof l === 'string').slice(0, 20)
     : [];
   try {
-    const repo = typeof body.repoId === 'string' ? await getRepo(body.repoId) : null;
-    if (!repo) return json({ error: 'Repository not found' }, 404);
+    const found = typeof body.repoId === 'string' ? await accessibleRepo(body.repoId, getRepo) : null;
+    if (!found) return json({ error: 'Repository not found' }, 404);
+    const { repo } = found;
     if (repo.embedded_chunks === 0) return json({ error: 'This repository has no embeddings yet.' }, 409);
     const started = Date.now();
     const hits = await searchRepo(repo.id, query, languages);

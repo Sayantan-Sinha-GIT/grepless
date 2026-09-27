@@ -1,9 +1,11 @@
 // The only LLM call in grepless: an optional one-sentence summary of a result.
 // See lib/explain.ts for how the provider is chosen.
 
+import { accessibleRepo } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { complete, explainEnabled } from '@/lib/explain';
 import { json, readJson } from '@/lib/http';
+import { getRepo } from '@/lib/repos';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -17,14 +19,15 @@ export async function POST(req: Request) {
   if (!explainEnabled()) return json({ error: 'AI explanations are not enabled on this deployment.' }, 404);
   if (!chunkId) return json({ error: 'Missing result id' }, 400);
 
-  const key = `${chunkId}:${query}`;
-  const cached = cache.get(key);
-  if (cached) return json({ explanation: cached });
-
   try {
-    const [chunk] = await db()<{ path: string; symbol: string | null; language: string; content: string }[]>`
-      select path, symbol, language, content from chunks where id = ${chunkId}`;
-    if (!chunk) return json({ error: 'Result not found' }, 404);
+    const [chunk] = await db()<{ repo_id: string; path: string; symbol: string | null; language: string; content: string }[]>`
+      select repo_id, path, symbol, language, content from chunks where id = ${chunkId}`;
+    // Private repos: only people who can see the repo can see its code.
+    if (!chunk || !(await accessibleRepo(chunk.repo_id, getRepo))) return json({ error: 'Result not found' }, 404);
+
+    const key = `${chunkId}:${query}`;
+    const cached = cache.get(key);
+    if (cached) return json({ explanation: cached });
 
     const { text, provider } = await complete(
       'You explain code to developers. Reply with exactly one plain-English sentence (max 30 words). ' +

@@ -5,7 +5,7 @@ export function json(data: unknown, status = 200) {
 }
 
 export function errorResponse(err: unknown) {
-  if (err instanceof RepoError) return json({ error: err.message }, err.status);
+  if (err instanceof RepoError) return json({ error: err.message, needsAuth: err.needsAuth || undefined }, err.status);
   console.error(err);
   return json({ error: 'Something went wrong on the server. Please try again.' }, 500);
 }

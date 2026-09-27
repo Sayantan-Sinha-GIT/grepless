@@ -10,6 +10,7 @@ import type { PublicRepo } from '@/lib/repos';
 import type { SearchHit } from '@/lib/search';
 import { GitHubIcon } from '../chrome/SiteHeader';
 import { Magnetic, useTypewriter } from '../fx/motion';
+import { VisibilityPill } from '../me/MyRepos';
 import { StatusBadge } from '../StatusBadge';
 import { IndexReactor, type Sample } from './IndexReactor';
 import { ResultCard } from './ResultCard';
@@ -268,6 +269,7 @@ export function Workspace({
             transition={{ delay: 0.25 }}
             className="flex shrink-0 flex-wrap items-center gap-2"
           >
+            {repo.isPrivate && <VisibilityPill isPrivate />}
             <StatusBadge status={repo.status} />
             <a
               href={githubUrl}

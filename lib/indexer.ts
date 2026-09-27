@@ -15,10 +15,16 @@ import { db } from './db';
 import { embed, embeddingText, toVectorLiteral } from './embedder';
 import { downloadRepo, fetchRepoMeta, RepoError } from './github';
 import { checkContent, checkPath, detectLanguage } from './languages';
-import { getRepo, type Repo } from './repos';
+import { getRepo, grantRepoAccess, type Repo } from './repos';
 import { searchableText } from './text';
 
 export type PrepareOutcome = { kind: 'started' | 'busy' | 'in-progress'; repo: Repo };
+
+/** The signed-in person driving the index, if any. Their token is what reaches private repos. */
+export interface Requester {
+  userId: string;
+  token: string;
+}
 
 interface ChangedFile {
   path: string;
@@ -51,7 +57,7 @@ async function setStatus(id: string, status: Repo['status'], message: string | n
   await db()`update repos set status = ${status}, status_message = ${message}, updated_at = now() where id = ${id}`;
 }
 
-export async function prepareRepo(id: string): Promise<PrepareOutcome> {
+export async function prepareRepo(id: string, requester: Requester | null = null): Promise<PrepareOutcome> {
   const claimed = await claimForPrepare(id);
   if (!claimed) {
     const repo = await getRepo(id);
@@ -59,7 +65,7 @@ export async function prepareRepo(id: string): Promise<PrepareOutcome> {
     return { kind: repo.status === 'queued' ? 'busy' : 'in-progress', repo };
   }
   try {
-    await runPrepare(claimed);
+    await runPrepare(claimed, requester);
   } catch (err) {
     const message =
       err instanceof RepoError ? err.message : 'Indexing failed unexpectedly. Try again in a minute.';
@@ -69,17 +75,20 @@ export async function prepareRepo(id: string): Promise<PrepareOutcome> {
   return { kind: 'started', repo: (await getRepo(id))! };
 }
 
-async function runPrepare(repo: Repo) {
+async function runPrepare(repo: Repo, requester: Requester | null) {
   const sql = db();
   const ref = { owner: repo.owner, name: repo.name };
 
-  const meta = await fetchRepoMeta(ref);
+  const meta = await fetchRepoMeta(ref, requester?.token);
   if (meta) {
     await sql`
       update repos set owner = ${meta.owner}, name = ${meta.name}, description = ${meta.description},
-        stars = ${meta.stars}, primary_language = ${meta.language}
+        stars = ${meta.stars}, primary_language = ${meta.language}, is_private = ${meta.isPrivate}
       where id = ${repo.id}`;
+    if (meta.isPrivate && requester) await grantRepoAccess(repo.id, requester.userId);
   }
+  // Private repos are downloaded with the requester's token; public ones anonymously.
+  const privateToken = meta?.isPrivate || repo.is_private ? (requester?.token ?? null) : null;
 
   const existingRows = await sql<{ id: string; path: string; content_hash: string }[]>`
     select id, path, content_hash from files where repo_id = ${repo.id}`;
@@ -88,6 +97,7 @@ async function runPrepare(repo: Repo) {
   const download = await downloadRepo(
     ref,
     (path, size) => size <= LIMITS.maxFileBytes && checkPath(path) === null,
+    privateToken,
   );
 
   if (

@@ -1,7 +1,7 @@
 # grepless
 
 **Search a GitHub repository by meaning, not by string.**
-Paste a public repo, ask *"where do we retry failed requests?"*, and jump straight to the right function on GitHub.
+Paste a repo (public, or your private ones after signing in with GitHub), ask *"where do we retry failed requests?"*, and jump straight to the right function on GitHub.
 
 **Live:** https://grepless.vercel.app · [Explore](https://grepless.vercel.app/explore) · [How it works](https://grepless.vercel.app/how-it-works)
 
@@ -16,6 +16,7 @@ grepless is a retrieval system built from the parts up, not a wrapper around a c
 | Store | Supabase Postgres: `vector(384)` + HNSW, plus a weighted `tsvector` + GIN. | [`supabase/migrations`](supabase/migrations) |
 | Retrieve | HNSW top-40 ⊕ full-text top-40, fused with Reciprocal Rank Fusion; every hit explains why it matched. | [`lib/search.ts`](lib/search.ts) |
 | Explain | Optional one-line summary: Gemini free tier, falling back to Groq. | [`lib/explain.ts`](lib/explain.ts) |
+| Sign in | A read-only GitHub App: you pick the repos, tokens are sealed with AES-256-GCM, and private indexes are shown only to people GitHub says can read them. | [`lib/auth.ts`](lib/auth.ts) |
 
 ## The interface
 

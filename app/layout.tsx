@@ -1,9 +1,13 @@
 import type { Metadata, Viewport } from 'next';
 import { Bricolage_Grotesque, JetBrains_Mono, Onest } from 'next/font/google';
+import { AuthProvider } from '@/components/auth/AuthContext';
 import { Background } from '@/components/chrome/Background';
 import { Providers } from '@/components/chrome/Providers';
 import { SiteFooter } from '@/components/chrome/SiteFooter';
 import { SiteHeader } from '@/components/chrome/SiteHeader';
+import { getViewer } from '@/lib/auth';
+import { withTimeout } from '@/lib/db';
+import { appConfig, authEnabled, installUrl } from '@/lib/githubApp';
 import { THEME_BOOT_SCRIPT } from '@/lib/themeScript';
 import './globals.css';
 
@@ -39,7 +43,16 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const enabled = authEnabled();
+  const viewer = enabled ? await withTimeout(getViewer(), 4000, null, 'viewer') : null;
+  const slug = appConfig()?.slug;
+  const auth = {
+    enabled,
+    viewer: viewer ? { login: viewer.login, name: viewer.name, avatarUrl: viewer.avatarUrl } : null,
+    installUrl: slug ? installUrl(slug) : null,
+  };
+
   return (
     <html
       lang="en"
@@ -58,10 +71,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to content
         </a>
         <Providers>
-          <Background />
-          <SiteHeader />
-          {children}
-          <SiteFooter />
+          <AuthProvider value={auth}>
+            <Background />
+            <SiteHeader />
+            {children}
+            <SiteFooter />
+          </AuthProvider>
         </Providers>
       </body>
     </html>

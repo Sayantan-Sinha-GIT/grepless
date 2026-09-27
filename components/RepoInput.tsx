@@ -4,6 +4,8 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { useId, useState } from 'react';
 import { rememberRepo } from '@/lib/recent';
+import { useAuth } from './auth/AuthContext';
+import { SignInButton } from './auth/SignInButton';
 import { Magnetic } from './fx/motion';
 
 const EXAMPLES = ['sindresorhus/ky', 'psf/requests', 'expressjs/express'];
@@ -21,6 +23,8 @@ export function RepoInput({
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsAuth, setNeedsAuth] = useState(false);
+  const auth = useAuth();
   const [shake, setShake] = useState(0);
   const inputId = `repo-url-${useId()}`;
 
@@ -28,6 +32,7 @@ export function RepoInput({
     if (!input.trim() || busy) return;
     setBusy(true);
     setError(null);
+    setNeedsAuth(false);
     try {
       const res = await fetch('/api/repos', {
         method: 'POST',
@@ -35,7 +40,10 @@ export function RepoInput({
         body: JSON.stringify({ url: input }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Could not add that repository.');
+      if (!res.ok) {
+        setNeedsAuth(Boolean(data.needsAuth));
+        throw new Error(data.error ?? 'Could not add that repository.');
+      }
       rememberRepo(data.repo.owner, data.repo.name);
       router.push(`/r/${data.repo.owner}/${data.repo.name}`);
     } catch (err) {
@@ -102,16 +110,17 @@ export function RepoInput({
 
       <AnimatePresence mode="wait">
         {error ? (
-          <motion.p
+          <motion.div
             key="err"
             role="alert"
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="mt-3 pl-5 text-sm text-danger"
+            className="mt-3 flex flex-wrap items-center gap-3 pl-5"
           >
-            {error}
-          </motion.p>
+            <p className="text-sm text-danger">{error}</p>
+            {needsAuth && auth.enabled && !auth.viewer && <SignInButton size="sm" next="/me" />}
+          </motion.div>
         ) : examples ? (
           <motion.div
             key="examples"

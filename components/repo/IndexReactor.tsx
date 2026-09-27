@@ -4,6 +4,8 @@ import { AnimatePresence, motion, useSpring, useTransform } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { fmt } from '@/lib/format';
 import type { PublicRepo } from '@/lib/repos';
+import { useAuth } from '../auth/AuthContext';
+import { SignInButton } from '../auth/SignInButton';
 
 export type Sample = { t: number; done: number };
 
@@ -40,6 +42,7 @@ export function IndexReactor({
   error: string | null;
   onRetry: () => void;
 }) {
+  const auth = useAuth();
   const [log, setLog] = useState<{ id: number; text: string }[]>([]);
   const lastLogged = useRef({ status: '', embedded: -1, id: 0 });
 
@@ -95,13 +98,16 @@ export function IndexReactor({
             <p className="mt-1 max-w-xl text-sm text-dim">{repo.statusMessage ?? 'Something went wrong while indexing.'}</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onRetry}
-          className="shrink-0 rounded-full bg-text px-5 py-2.5 text-sm font-semibold text-bg transition hover:opacity-85"
-        >
-          Try again
-        </button>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {auth.enabled && !auth.viewer && /sign in with GitHub/i.test(repo.statusMessage ?? '') && <SignInButton />}
+          <button
+            type="button"
+            onClick={onRetry}
+            className="shrink-0 rounded-full bg-surface px-5 py-2.5 text-sm font-semibold ring-1 ring-line transition hover:ring-brand"
+          >
+            Try again
+          </button>
+        </div>
       </motion.div>
     );
   }

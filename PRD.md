@@ -3,14 +3,14 @@
 **Owner:** Sayantan Sinha (GitHub: Sayantan-Sinha-GIT)
 **Live:** https://grepless.vercel.app
 **Repository:** https://github.com/Sayantan-Sinha-GIT/grepless
-**Status:** v2 (design overhaul) built, tested and deployed
+**Status:** v3 (Sign in with GitHub + private repos) built and tested
 **Last updated:** 2026-09-27
 
 ---
 
 ## 1. Summary
 
-grepless is a website for searching a GitHub repository by meaning instead of exact text. You paste a public repo URL. grepless downloads it, splits every file into functions and classes, turns each piece into a 384-dimension embedding, and stores the vectors in Postgres with pgvector. You can then ask plain-English questions such as *"where do I handle auth retries?"*. It returns the matching code with file paths, line numbers, a "why this matched" explanation, and a permalink to those exact lines on GitHub.
+grepless is a website for searching a GitHub repository by meaning instead of exact text. You paste a GitHub repo URL (public, or private after signing in with GitHub). grepless downloads it, splits every file into functions and classes, turns each piece into a 384-dimension embedding, and stores the vectors in Postgres with pgvector. You can then ask plain-English questions such as *"where do I handle auth retries?"*. It returns the matching code with file paths, line numbers, a "why this matched" explanation, and a permalink to those exact lines on GitHub.
 
 The project demonstrates retrieval at the systems level, not a thin wrapper around a chat API:
 
@@ -33,8 +33,8 @@ Text search (`grep`, GitHub search) only works when you already know the identif
 4. Make the retrieval pipeline visible and understandable to a technical reviewer.
 5. Look and feel like a polished product: animated, responsive, in light and dark themes.
 
-**Non-goals (v2)**
-- Private repositories (needs GitHub OAuth; see §11).
+**Non-goals (v3)**
+- Write access of any kind to GitHub. grepless only ever reads.
 - Chat-style answer generation. Search is pure embeddings plus ranking.
 - Repositories larger than the limits in §8.
 
@@ -72,7 +72,7 @@ Text search (`grep`, GitHub search) only works when you already know the identif
 | # | Feature | Status |
 |---|---|---|
 | 13 | One-line AI explanation of a result | Shipped. **Explain** button, the only LLM call in the product. Providers are tried in order: **Gemini** free tier (`GEMINI_API_KEY`), then **Groq** free tier (`GROQ_API_KEY`) if Gemini fails or returns nothing, then optionally Vercel AI Gateway. The button is hidden until a key is set, and each answer shows which provider replied. |
-| 14 | GitHub OAuth for private repos | Deferred at the owner's request. Setup steps are in `docs/SETUP.md`. |
+| 14 | Sign in with GitHub for private repos | Shipped (v3). See §12. grepless is a **GitHub App** with read-only *Contents* + *Metadata* permissions; each person picks which repos it may read. Private indexes are visible only to people GitHub says can read the repo. |
 
 ## 6. Pages
 
@@ -82,6 +82,8 @@ Text search (`grep`, GitHub search) only works when you already know the identif
 | `/explore` | Every indexed repo | Word-by-word headline, count-ups, filter + animated sort tabs, language chips, tilt/spotlight cards with a shared-element morph into the repo page |
 | `/how-it-works` | Technical walkthrough | Scroll story: a pinned scene changes per chapter (tarball stream, file sieve, AST → chunks, vectors clustering, RRF merge), an architecture diagram, headline numbers |
 | `/r/[owner]/[name]` | Workspace | Morphing title, avatar, stat pills, animated language bar, indexing reactor, sticky glowing search bar with typewriter placeholder, language filter, animated result cards |
+| `/me` | Your repos | Signed out: animated padlock scene, "Sign in with GitHub", what grepless can and can't do. Signed in: profile, every repo granted to grepless (filter; All / Private / Public / Indexed tabs), index status, "Index" / "Search" per repo, installations with "manage" links, "choose repos on GitHub" step when nothing is granted yet |
+| private repo, no access | Gate | Same padlock scene; identical wording whether the repo is private or doesn't exist (like GitHub's 404) |
 | 404 / error | Friendly failure | "Lost vector" animation, repo input, retry |
 
 ## 7. Design system (v2, "vector field")
@@ -108,6 +110,9 @@ Browser ──POST /api/repos──────────▶ create/lookup rep
            (×3 parallel workers)        → gte-small → UPDATE embedding → progress
         ──POST /api/search ───────────▶ embed query → hybrid SQL (HNSW + GIN, RRF) → reasons
         ──POST /api/explain ──────────▶ Gemini → Groq fallback (optional)
+        ──GET  /api/auth/login ───────▶ GitHub authorize (state cookie) → /api/auth/callback
+                                        → code → user token → users + sessions → cookie
+        ──GET  /api/me/repos ─────────▶ installations → granted repos → index status
 ```
 
 **Client-driven embedding.** Serverless functions have time limits and a large repo takes minutes to embed. Short idempotent batches mean no request runs long, several viewers share the work safely, and a closed tab only pauses the job.
@@ -120,6 +125,10 @@ Browser ──POST /api/repos──────────▶ create/lookup rep
 - `repos`: owner, name, slug (unique), description, stars, commit_sha, status, counters, languages histogram, timestamps, search_count.
 - `files`: repo_id, path, language, content_hash (SHA-1), size, line count. Unique (repo_id, path).
 - `chunks`: repo_id, file_id, path, language, symbol, kind, start/end line, content, `fts tsvector`, `embedding vector(384)`, `claimed_at`.
+- `repos.is_private`: private repos never appear on Explore, the home page lists or the site counters.
+- `users`: GitHub user id, login, name, avatar, **sealed** access + refresh tokens and their expiry times.
+- `sessions`: SHA-256 of the session cookie (the raw value never reaches the DB), user, expiry (30 days).
+- `repo_access`: (repo, user, verified_at). Who may see a private repo's index.
 
 ### Limits
 | Limit | Value |
@@ -134,7 +143,10 @@ Browser ──POST /api/repos──────────▶ create/lookup rep
 ### Security
 - RLS is on for every table, and all tables are revoked from `anon` and `authenticated`, so nothing is exposed through Supabase's REST API.
 - The app uses a dedicated least-privilege Postgres role (`grepless_app`) through the Supavisor transaction pooler. Its connection string exists only as an encrypted Vercel environment variable.
-- Only public repos are fetched. No token that could reach private code is used.
+- Signed out, only public repos are fetched. Private repos are fetched only with the requesting person's own GitHub token.
+- GitHub tokens are sealed with AES-256-GCM (key from `AUTH_SECRET`) before storage. Session cookies are random 256-bit values, `httpOnly`, `SameSite=Lax`, `Secure` in production; the DB stores only their hash.
+- Sign-in uses a one-time `state` cookie (10 min) against CSRF; post-sign-in redirects accept only same-site paths. Sign-out is a POST with an Origin check.
+- Every route that reads a repo (page, status, prepare, embed, re-index, search, explain) checks access. Without access, the answer is the same 404 as for a repo that doesn't exist.
 - Server-side validation and caps on every route. Code snippets are HTML-escaped by the highlighter before rendering.
 
 ### Reliability
@@ -146,9 +158,11 @@ Browser ──POST /api/repos──────────▶ create/lookup rep
 
 | Layer | What | Command |
 |---|---|---|
-| Unit (vitest) | Repo URL parsing, file filtering, tokenising / stemming / tsquery safety, the chunker on TS / Python / Markdown, and the Gemini → Groq fallback chain with a fake `fetch` | `npm test`: 42/42 pass |
+| Unit (vitest) | Repo URL parsing, file filtering, tokenising / stemming / tsquery safety, the chunker on TS / Python / Markdown, the Gemini → Groq fallback chain, and sign-in: token sealing / tamper detection, redirect safety, code exchange, refresh, repo visibility, paginated repo listing (all with a fake `fetch`) | `npm test`: 58/58 pass |
 | Type check | Whole project | `npm run lint` |
-| Browser sweep | 5 pages × light/dark × phone/desktop: console errors, failed requests, broken images, sideways overflow, unlabelled buttons, theme toggle + memory, mobile menu | `npm run qa -- <url>`: 20/20 clean locally and on production |
+| Privacy check | A fixture private repo against a running server: hidden from anonymous visitors on all 7 routes, the page, Explore and lists; hidden from a signed-in person without access; visible with access; hidden again when access is stale and GitHub can't confirm, or the session expired; sign-out deletes the session | 18/18 pass locally |
+| Private download | Signed out the private `grepless` repo looks missing and asks for sign-in; with a token its tarball downloads and parses | passes |
+| Browser sweep | 6 pages × light/dark × phone/desktop: console errors, failed requests, broken images, sideways overflow, unlabelled buttons, theme toggle + memory, mobile menu | `npm run qa -- <url>`: 24/24 clean locally |
 | Live checks | Index → embed → search on production; Explain answered by Gemini on the live site | manual scripts |
 
 ## 10. Success metrics
@@ -157,8 +171,23 @@ Browser ──POST /api/repos──────────▶ create/lookup rep
 - For the demo queries on the demo repos, the expected function is in the top 3.
 
 ## 11. Future work
-1. GitHub OAuth + private repos, visible only to the person who indexed them.
-2. Cross-repo search.
-3. A code-specialised embedding model behind a flag, with an offline evaluation set.
-4. Webhook-driven re-index on push.
-5. Cross-encoder re-ranking of the top 20.
+1. Cross-repo search across everything a person has granted.
+2. A code-specialised embedding model behind a flag, with an offline evaluation set.
+3. Webhook-driven re-index on push (the GitHub App already exists; its webhook is off).
+4. Cross-encoder re-ranking of the top 20.
+
+## 12. Sign in with GitHub (v3)
+
+**Why a GitHub App, not an OAuth App.** A classic OAuth App can only reach private repos with the `repo` scope, which is full read *and write* access to every repo. A GitHub App asks for exactly *Contents: read* and *Metadata: read*, and the person chooses which repos (or "All repositories") on GitHub's own install page. The user-to-server token can only reach repos that are both visible to the person and granted to the app.
+
+**Flow**
+1. "Sign in with GitHub" → `/api/auth/login` sets a one-time `state` cookie and redirects to GitHub.
+2. GitHub → `/api/auth/callback?code&state`. The state is checked, the code is swapped for a user token (8 h) + refresh token (6 months), the profile is read, and a session is created.
+3. `/me` lists installations and granted repos. If there are none, it shows the "choose repos on GitHub" step. After installing, GitHub returns to `/api/auth/installed` → `/me?installed=1`.
+4. Opening a private repo creates the row as private and records access. Indexing downloads it through the API with the person's token (a short-lived signed codeload URL).
+
+**Token renewal.** Tokens are renewed a minute before expiry, inside a transaction holding a row lock, because refresh tokens are single-use.
+
+**Access checks.** Public repo: everyone. Private repo: a `repo_access` row verified in the last hour, else GitHub is asked with the person's token (`GET /repos/{owner}/{name}`). "Yes" grants, "no" revokes, and "GitHub unreachable" keeps existing access but never grants new access.
+
+**Configuration (Vercel env).** `GITHUB_APP_SLUG`, `GITHUB_APP_ID`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `AUTH_SECRET`. Sign-in stays hidden until all of these are set. The app is created with `node scripts/create-github-app.mjs` (GitHub's manifest flow: one click on GitHub).

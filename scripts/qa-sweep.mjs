@@ -19,6 +19,7 @@ const PAGES = [
   { path: '/explore', name: 'explore' },
   { path: '/how-it-works', name: 'how' },
   { path: '/r/sindresorhus/ky?q=merge%20headers', name: 'repo-search', waitFor: 'article' },
+  { path: '/me', name: 'me' },
   { path: '/this-page-does-not-exist', name: '404', expectStatus: 404 },
 ];
 const VIEWPORTS = [

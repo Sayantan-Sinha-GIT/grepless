@@ -4,16 +4,20 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AnimatePresence, motion, useMotionValueEvent, useScroll } from 'motion/react';
 import { useEffect, useState } from 'react';
+import { AccountMenu } from '../auth/AccountMenu';
+import { useAuth } from '../auth/AuthContext';
+import { SignInButton } from '../auth/SignInButton';
 import { LogoMark, Wordmark } from './Logo';
 import { ThemeToggle } from './ThemeToggle';
 
 export const SOURCE_URL = 'https://github.com/Sayantan-Sinha-GIT/grepless';
 
-const NAV = [
+const BASE_NAV = [
   { href: '/', label: 'Home' },
   { href: '/explore', label: 'Explore' },
   { href: '/how-it-works', label: 'How it works' },
 ];
+const ME = { href: '/me', label: 'Your repos' };
 
 function isActive(pathname: string, href: string) {
   if (href === '/') return pathname === '/';
@@ -25,6 +29,8 @@ export function SiteHeader() {
   const { scrollY } = useScroll();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  const auth = useAuth();
+  const NAV = auth.enabled ? [...BASE_NAV, ME] : BASE_NAV;
 
   useMotionValueEvent(scrollY, 'change', (y) => setScrolled(y > 24));
   useEffect(() => setOpen(false), [pathname]);
@@ -84,15 +90,25 @@ export function SiteHeader() {
 
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <a
-              href={SOURCE_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="hidden h-9 items-center gap-2 rounded-full bg-text px-4 text-sm font-medium text-bg transition hover:opacity-85 sm:flex"
-            >
-              <GitHubIcon />
-              Source
-            </a>
+            {auth.enabled ? (
+              auth.viewer ? (
+                <AccountMenu />
+              ) : (
+                <span className="hidden sm:inline-flex">
+                  <SignInButton size="sm" label="Sign in" />
+                </span>
+              )
+            ) : (
+              <a
+                href={SOURCE_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="hidden h-9 items-center gap-2 rounded-full bg-text px-4 text-sm font-medium text-bg transition hover:opacity-85 sm:flex"
+              >
+                <GitHubIcon />
+                Source
+              </a>
+            )}
             <button
               type="button"
               aria-label={open ? 'Close menu' : 'Open menu'}
@@ -134,17 +150,32 @@ export function SiteHeader() {
                 </motion.div>
               ))}
             </nav>
-            <motion.a
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5 }}
-              href={SOURCE_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-2 text-ink-dim"
+              className="flex flex-col gap-5"
             >
-              <GitHubIcon /> Source on GitHub
-            </motion.a>
+              {auth.enabled && !auth.viewer && (
+                <a
+                  href={`/api/auth/login?next=${encodeURIComponent(pathname)}`}
+                  className="flex h-14 items-center justify-center gap-3 rounded-full bg-on-ink text-base font-semibold text-ink"
+                >
+                  <GitHubIcon className="h-5 w-5" /> Sign in with GitHub
+                </a>
+              )}
+              {auth.viewer && (
+                <form action="/api/auth/logout" method="post" className="flex items-center justify-between gap-3">
+                  <span className="truncate font-mono text-sm text-ink-dim">@{auth.viewer.login}</span>
+                  <button type="submit" className="rounded-full px-4 py-2 text-sm text-on-ink ring-1 ring-ink-line">
+                    Sign out
+                  </button>
+                </form>
+              )}
+              <a href={SOURCE_URL} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-ink-dim">
+                <GitHubIcon /> Source on GitHub
+              </a>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
