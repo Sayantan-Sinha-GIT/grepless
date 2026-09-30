@@ -153,6 +153,7 @@ Browser ──POST /api/repos──────────▶ create/lookup rep
 - **Pooler stall (fixed 2026-09-27).** `sql.unsafe(text, params)` makes postgres.js ask the server to describe parameter types first, and that round trip stalls indefinitely behind Supabase's transaction pooler. It surfaced as a 60 s statement timeout in production and a hung dev server. All queries are now tagged templates; a stress test went from stalling on the first round to 40/40 clean.
 - Connections are recycled (`max_lifetime`, `keep_alive`) so a pooler hiccup can't leave dead sockets.
 - Page data loads with `withTimeout`: if the database is slow, the page still renders without that data.
+- **Keep-alive.** Supabase pauses free projects after about a week without database activity, so a Vercel Cron job calls `/api/keep-alive` once a day (one `count(*)` on `repos`).
 
 ## 9. Testing
 
