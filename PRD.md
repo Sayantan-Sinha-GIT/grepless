@@ -71,7 +71,7 @@ Text search (`grep`, GitHub search) only works when you already know the identif
 ### Nice-to-have
 | # | Feature | Status |
 |---|---|---|
-| 13 | One-line AI explanation of a result | Shipped. **Explain** button, the only LLM call in the product. Providers are tried in order: **Gemini** free tier (`GEMINI_API_KEY`), then **Groq** free tier (`GROQ_API_KEY`) if Gemini fails or returns nothing, then optionally Vercel AI Gateway. The button is hidden until a key is set, and each answer shows which provider replied. |
+| 13 | One-line AI explanation of a result | Shipped. **Explain** button, the only LLM call in the product. Providers are tried in order: **Gemini** free tier (`GEMINI_API_KEY`), then **Groq** free tier (`GROQ_API_KEY`; model `openai/gpt-oss-20b` with low reasoning effort, because Groq retired its llama-3.x models on 16 August 2026) if Gemini fails or returns nothing, then optionally Vercel AI Gateway. The button is hidden until a key is set, and each answer shows which provider replied. |
 | 14 | Sign in with GitHub for private repos | Shipped (v3). See §12. grepless is a **GitHub App** with read-only *Contents* + *Metadata* permissions; each person picks which repos it may read. Private indexes are visible only to people GitHub says can read the repo. |
 
 ## 6. Pages

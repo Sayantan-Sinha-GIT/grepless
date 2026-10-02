@@ -33,13 +33,17 @@ async function gemini(system: string, prompt: string): Promise<string> {
 }
 
 async function groq(system: string, prompt: string): Promise<string> {
+  // Groq retired the llama-3.x models on 2026-08-16. gpt-oss thinks before it answers, so it
+  // gets low reasoning effort and room for that thinking plus the one-line answer.
+  const model = process.env.GROQ_MODEL || 'openai/gpt-oss-20b';
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
+      model,
+      ...(model.startsWith('openai/gpt-oss') ? { reasoning_effort: 'low' } : {}),
       temperature: 0.2,
-      max_tokens: 120,
+      max_tokens: 600,
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: prompt },
